@@ -1,14 +1,13 @@
-# terraform/main.tf
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     vsphere = {
       source  = "hashicorp/vsphere"
       version = "~> 2.4"
     }
   }
-}  # <- This closing brace was missing!
+}
 
 # Provider configuration
 provider "vsphere" {

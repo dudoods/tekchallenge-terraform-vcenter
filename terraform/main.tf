@@ -8,13 +8,7 @@ terraform {
       version = "~> 2.4"
     }
   }
-  
-  # Optional: Use remote state (recommended)
-  #backend "s3" {
-   #  key    = "vcenter/terraform.tfstate"
-  #  region = "us-east-1"
-#  }
-#}
+}  # <- This closing brace was missing!
 
 # Provider configuration
 provider "vsphere" {

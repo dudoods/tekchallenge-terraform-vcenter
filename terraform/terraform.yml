@@ -1,0 +1,100 @@
+name: 'Terraform vCenter'
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "terraform/**" ]
+  pull_request:
+    branches: [ "main" ]
+    paths: [ "terraform/**" ]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+        - plan
+        - apply
+        - destroy
+
+env:
+  TF_VERSION: "1.5.7"
+  TF_WORKING_DIR: "./terraform"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: 'Terraform'
+    runs-on: ubuntu-latest
+
+    # Use bash shell for all steps
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+    steps:
+    # Checkout the repository
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # Install Terraform CLI
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ${{ env.TF_VERSION }}
+
+    # Initialize Terraform
+    - name: Terraform Init
+      run: terraform init
+      env:
+        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+
+    # Check Terraform formatting
+    - name: Terraform Format
+      run: terraform fmt -check
+
+    # Validate Terraform configuration
+    - name: Terraform Validate
+      run: terraform validate
+
+    # Generate Terraform plan
+    - name: Terraform Plan
+      run: terraform plan -input=false -out=tfplan
+      env:
+        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+
+    # Apply Terraform (only on main branch push or manual trigger)
+    - name: Terraform Apply
+      if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+      run: terraform apply -auto-approve tfplan
+      env:
+        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+
+    # Destroy infrastructure (only on manual trigger)
+    - name: Terraform Destroy
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+      run: terraform destroy -auto-approve
+      env:
+        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+
+    # Upload plan as artifact for PRs
+    - name: Upload Terraform Plan
+      if: github.event_name == 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: terraform-plan
+        path: ${{ env.TF_WORKING_DIR }}/tfplan

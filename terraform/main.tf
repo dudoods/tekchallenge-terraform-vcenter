@@ -10,12 +10,11 @@ terraform {
   }
   
   # Optional: Use remote state (recommended)
-  backend "s3" {
-    bucket = "your-terraform-state-bucket"
-    key    = "vcenter/terraform.tfstate"
-    region = "us-east-1"
-  }
-}
+  #backend "s3" {
+   #  key    = "vcenter/terraform.tfstate"
+  #  region = "us-east-1"
+#  }
+#}
 
 # Provider configuration
 provider "vsphere" {

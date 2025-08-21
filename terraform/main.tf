@@ -1,7 +1,7 @@
 # terraform/main.tf
 terraform {
   required_version = ">= 1.0"
-  
+
   required_providers {
     vsphere = {
       source  = "hashicorp/vsphere"
@@ -61,11 +61,11 @@ resource "vsphere_virtual_machine" "vm" {
   datastore_id     = data.vsphere_datastore.datastore.id
   folder           = vsphere_folder.vm_folder.path
 
-  num_cpus               = var.vm_cpu
-  memory                 = var.vm_memory
-  guest_id               = data.vsphere_virtual_machine.template.guest_id
-  scsi_type              = data.vsphere_virtual_machine.template.scsi_type
-  firmware               = data.vsphere_virtual_machine.template.firmware
+  num_cpus                = var.vm_cpu
+  memory                  = var.vm_memory
+  guest_id                = data.vsphere_virtual_machine.template.guest_id
+  scsi_type               = data.vsphere_virtual_machine.template.scsi_type
+  firmware                = data.vsphere_virtual_machine.template.firmware
   efi_secure_boot_enabled = data.vsphere_virtual_machine.template.efi_secure_boot_enabled
 
   # Network interface

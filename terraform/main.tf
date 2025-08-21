@@ -1,119 +1,192 @@
-# terraform/main.tf
-terraform {
-  required_version = ">= 1.0"
+# terraform/outputs.tf
 
-  required_providers {
-    vsphere = {
-      source  = "hashicorp/vsphere"
-      version = "~> 2.4"
-    }
+output "vm_name" {
+  description = "Name of the created virtual machine"
+  value       = vsphere_virtual_machine.vm.name
+}
+
+output "vm_moid" {
+  description = "Managed Object ID of the VM"
+  value       = vsphere_virtual_machine.vm.moid
+}
+
+output "vm_uuid" {
+  description = "UUID of the created virtual machine"
+  value       = vsphere_virtual_machine.vm.uuid
+}
+
+output "vm_power_state" {
+  description = "Power state of the virtual machine"
+  value       = vsphere_virtual_machine.vm.power_state
+}
+
+output "vm_cpu_count" {
+  description = "Number of CPUs assigned to the VM"
+  value       = vsphere_virtual_machine.vm.num_cpus
+}
+
+output "vm_memory_mb" {
+  description = "Memory in MB assigned to the VM"
+  value       = vsphere_virtual_machine.vm.memory
+}
+
+output "vm_disk_size_gb" {
+  description = "Disk size in GB"
+  value       = vsphere_virtual_machine.vm.disk[0].size
+}
+
+output "vm_folder" {
+  description = "Folder where the VM is located"
+  value       = vsphere_virtual_machine.vm.folder
+}
+
+output "vm_datastore" {
+  description = "Datastore where the VM is located"
+  value       = data.vsphere_datastore.datastore.name
+}
+
+output "vm_network" {
+  description = "Network the VM is connected to"
+  value       = data.vsphere_network.network.name
+}
+
+output "vm_hardware_summary" {
+  description = "VM hardware configuration"
+  value = {
+    cpu_count          = vsphere_virtual_machine.vm.num_cpus
+    memory_mb          = vsphere_virtual_machine.vm.memory
+    disk_size_gb       = var.vm_disk_size
+    guest_os           = var.guest_id
+    firmware           = var.firmware
+    scsi_type          = var.scsi_type
+    network_adapter    = var.network_adapter_type
+    thin_provisioned   = var.thin_provisioned
+    cpu_hot_add        = var.cpu_hot_add_enabled
+    memory_hot_add     = var.memory_hot_add_enabled
   }
 }
 
-# Configure the VMware vSphere Provider
-provider "vsphere" {
-  user                 = var.vsphere_user
-  password             = var.vsphere_password
-  vsphere_server       = var.vsphere_server
-  allow_unverified_ssl = var.allow_unverified_ssl
-}
-
-# Data source for datacenter
-data "vsphere_datacenter" "datacenter" {
-  name = var.datacenter_name
-}
-
-# Data source for datastore
-data "vsphere_datastore" "datastore" {
-  name          = var.datastore_name
-  datacenter_id = data.vsphere_datacenter.datacenter.id
-}
-
-# Data source for compute cluster
-data "vsphere_compute_cluster" "cluster" {
-  name          = var.cluster_name
-  datacenter_id = data.vsphere_datacenter.datacenter.id
-}
-
-# Data source for network
-data "vsphere_network" "network" {
-  name          = var.network_name
-  datacenter_id = data.vsphere_datacenter.datacenter.id
-}
-
-# Data source for template
-data "vsphere_virtual_machine" "template" {
-  name          = var.template_name
-  datacenter_id = data.vsphere_datacenter.datacenter.id
-}
-
-# Create a folder for organization (optional)
-resource "vsphere_folder" "vm_folder" {
-  path          = var.vm_folder_path
-  type          = "vm"
-  datacenter_id = data.vsphere_datacenter.datacenter.id
-}
-
-# Create the virtual machine
-resource "vsphere_virtual_machine" "vm" {
-  name             = var.vm_name
-  resource_pool_id = data.vsphere_compute_cluster.cluster.resource_pool_id
-  datastore_id     = data.vsphere_datastore.datastore.id
-  folder           = vsphere_folder.vm_folder.path
-
-  num_cpus                = var.vm_cpu
-  memory                  = var.vm_memory
-  guest_id                = data.vsphere_virtual_machine.template.guest_id
-  scsi_type               = data.vsphere_virtual_machine.template.scsi_type
-  firmware                = data.vsphere_virtual_machine.template.firmware
-  efi_secure_boot_enabled = data.vsphere_virtual_machine.template.efi_secure_boot_enabled
-
-  # Network interface
-  network_interface {
-    network_id   = data.vsphere_network.network.id
-    adapter_type = data.vsphere_virtual_machine.template.network_interface_types[0]
+output "iso_information" {
+  description = "Information about the mounted ISO"
+  value = {
+    iso_path       = var.iso_path
+    iso_datastore  = data.vsphere_datastore.iso_datastore.name
+    boot_delay_ms  = var.boot_delay
   }
-
-  # Disk configuration
-  disk {
-    label            = "disk0"
-    size             = var.vm_disk_size
-    eagerly_scrub    = data.vsphere_virtual_machine.template.disks.0.eagerly_scrub
-    thin_provisioned = data.vsphere_virtual_machine.template.disks.0.thin_provisioned
-  }
-
-  # Clone from template
-  clone {
-    template_uuid = data.vsphere_virtual_machine.template.id
-
-    customize {
-      linux_options {
-        host_name = var.vm_name
-        domain    = var.vm_domain
-      }
-
-      network_interface {
-        ipv4_address = var.vm_ip_address
-        ipv4_netmask = var.vm_netmask
-      }
-
-      ipv4_gateway    = var.vm_gateway
-      dns_server_list = var.dns_servers
-    }
-  }
-
-  # Wait for customization to complete
-  wait_for_guest_net_timeout = 5
-  wait_for_guest_ip_timeout  = 5
 }
 
-# Create a snapshot after VM creation (optional)
-resource "vsphere_virtual_machine_snapshot" "vm_snapshot" {
-  virtual_machine_uuid = vsphere_virtual_machine.vm.uuid
-  snapshot_name        = "${var.vm_name}-initial-snapshot"
-  description          = "Initial snapshot after VM creation"
-  memory               = false
-  quiesce              = true
-  remove_children      = false
-  consolidate          = true
+output "snapshot_id" {
+  description = "ID of the initial snapshot (if created)"
+  value       = var.create_snapshot ? vsphere_virtual_machine_snapshot.vm_snapshot[0].id : null
+}
+
+output "installation_instructions" {
+  description = "Next steps after VM creation"
+  value = <<EOT
+🎉 VM created successfully! Next steps:
+
+📋 VM DETAILS:
+   • Name: ${vsphere_virtual_machine.vm.name}
+   • Location: ${vsphere_virtual_machine.vm.folder}
+   • CPU: ${vsphere_virtual_machine.vm.num_cpus} vCPUs
+   • Memory: ${vsphere_virtual_machine.vm.memory} MB
+   • Disk: ${var.vm_disk_size} GB (thin provisioned: ${var.thin_provisioned})
+   • ISO: ${var.iso_path}
+
+🚀 INSTALLATION PROCESS:
+   1. VM will power on automatically and boot from the Windows Server 2022 ISO
+   2. Connect to VM console via vCenter Web Client
+   3. Follow Windows Server 2022 installation wizard:
+      → Select installation language and region
+      → Choose "Windows Server 2022 Standard/Datacenter" edition
+      → Select "Custom: Install Windows only" installation type  
+      → Choose the ${var.vm_disk_size}GB disk for installation
+      → Complete the installation process
+   
+🔧 POST-INSTALLATION TASKS:
+   4. After installation:
+      → Set administrator password
+      → Configure network settings
+      → Install VMware Tools (recommended)
+      → Apply Windows updates
+      → Configure server roles as needed
+      → Join domain if required
+
+💡 QUICK ACCESS:
+   • vCenter: Connect to VM console for installation
+   • Snapshot: ${var.create_snapshot ? "Initial snapshot created" : "No snapshot created"}
+   • Boot Delay: ${var.boot_delay / 1000} seconds (time to press F2 for BIOS if needed)
+
+⚠️  IMPORTANT NOTES:
+   • VM boots from ISO first - Windows installation will start automatically
+   • Installation typically takes 15-30 minutes
+   • VM will require manual OS installation steps
+   • Network connectivity will be available after OS installation and configuration
+EOT
+}
+
+output "vm_access_info" {
+  description = "Information for accessing the VM"
+  value = {
+    vm_name           = vsphere_virtual_machine.vm.name
+    vm_moid          = vsphere_virtual_machine.vm.moid
+    datacenter       = var.datacenter_name
+    cluster          = var.cluster_name
+    folder           = var.vm_folder_path
+    vcenter_server   = var.vsphere_server
+    console_access   = "Connect via vCenter Web Client console"
+    installation_iso = var.iso_path
+  }
+}achine"
+  value       = vsphere_virtual_machine.vm.name
+}
+
+output "vm_uuid" {
+  description = "UUID of the created virtual machine"
+  value       = vsphere_virtual_machine.vm.uuid
+}
+
+output "vm_ip_address" {
+  description = "IP address of the virtual machine"
+  value       = vsphere_virtual_machine.vm.default_ip_address
+}
+
+output "vm_power_state" {
+  description = "Power state of the virtual machine"
+  value       = vsphere_virtual_machine.vm.power_state
+}
+
+output "vm_cpu_count" {
+  description = "Number of CPUs assigned to the VM"
+  value       = vsphere_virtual_machine.vm.num_cpus
+}
+
+output "vm_memory_mb" {
+  description = "Memory in MB assigned to the VM"
+  value       = vsphere_virtual_machine.vm.memory
+}
+
+output "vm_disk_size_gb" {
+  description = "Disk size in GB"
+  value       = vsphere_virtual_machine.vm.disk[0].size
+}
+
+output "vm_folder" {
+  description = "Folder where the VM is located"
+  value       = vsphere_virtual_machine.vm.folder
+}
+
+output "vm_datastore" {
+  description = "Datastore where the VM is located"
+  value       = data.vsphere_datastore.datastore.name
+}
+
+output "vm_network" {
+  description = "Network the VM is connected to"
+  value       = data.vsphere_network.network.name
+}
+
+output "snapshot_id" {
+  description = "ID of the initial snapshot"
+  value       = vsphere_virtual_machine_snapshot.vm_snapshot.id
 }

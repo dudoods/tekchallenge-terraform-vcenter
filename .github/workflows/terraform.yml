@@ -15,9 +15,9 @@ on:
         default: 'plan'
         type: choice
         options:
-        - plan
-        - apply
-        - destroy
+          - plan
+          - apply
+          - destroy
 
 env:
   TF_VERSION: "1.5.7"
@@ -39,62 +39,71 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
-    # Checkout the repository
-    - name: Checkout
-      uses: actions/checkout@v4
+      # Checkout the repository
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    # Install Terraform CLI
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
+      # Install Terraform CLI
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
-    # Initialize Terraform
-    - name: Terraform Init
-      run: terraform init
-      env:
-        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
-        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
-        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+          TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+          TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
 
-    # Check Terraform formatting
-    - name: Terraform Format
-      run: terraform fmt -check
+      # Check Terraform formatting with better error reporting
+      - name: Terraform Format Check
+        run: |
+          if ! terraform fmt -check -diff; then
+            echo "❌ Terraform files are not properly formatted!"
+            echo "📝 Run 'terraform fmt' locally to fix formatting issues."
+            echo "🔍 Files that need formatting:"
+            terraform fmt -check -diff
+            exit 1
+          else
+            echo "✅ All Terraform files are properly formatted!"
+          fi
 
-    # Validate Terraform configuration
-    - name: Terraform Validate
-      run: terraform validate
+      # Validate Terraform configuration
+      - name: Terraform Validate
+        run: terraform validate
 
-    # Generate Terraform plan
-    - name: Terraform Plan
-      run: terraform plan -input=false -out=tfplan
-      env:
-        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
-        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
-        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+      # Generate Terraform plan
+      - name: Terraform Plan
+        run: terraform plan -input=false -out=tfplan
+        env:
+          TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+          TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+          TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
 
-    # Apply Terraform (only on main branch push or manual trigger)
-    - name: Terraform Apply
-      if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-      run: terraform apply -auto-approve tfplan
-      env:
-        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
-        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
-        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+      # Apply Terraform (only on main branch push or manual trigger)
+      - name: Terraform Apply
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+          TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+          TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
 
-    # Destroy infrastructure (only on manual trigger)
-    - name: Terraform Destroy
-      if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
-      run: terraform destroy -auto-approve
-      env:
-        TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
-        TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
-        TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
+      # Destroy infrastructure (only on manual trigger)
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_vsphere_user: ${{ secrets.VSPHERE_USER }}
+          TF_VAR_vsphere_password: ${{ secrets.VSPHERE_PASSWORD }}
+          TF_VAR_vsphere_server: ${{ secrets.VSPHERE_SERVER }}
 
-    # Upload plan as artifact for PRs
-    - name: Upload Terraform Plan
-      if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v4
-      with:
-        name: terraform-plan
-        path: ${{ env.TF_WORKING_DIR }}/tfplan
+      # Upload plan as artifact for PRs
+      - name: Upload Terraform Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
